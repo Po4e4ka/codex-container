@@ -92,5 +92,6 @@ RUN npm install -g @openai/codex@latest
 USER 0:0
 
 COPY entrypoint.sh /entrypoint.sh
+COPY CONTEXT.md /home/$APP_USER/CONTEXT.md
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
