@@ -9,7 +9,6 @@ This project describes the environment in which the Codex agent (me) runs as a D
 ## Run Configuration (docker run)
 The run command is defined in `etp.sh`:
 - The container runs interactively (`-it`) and is removed on exit (`--rm`).
-- Host networking is used (`--network host`).
 - Working directory: `/home/codex`.
 - Device `/dev/net/tun` is passed through and `NET_ADMIN` capability is added for OpenVPN.
 - Volumes:
