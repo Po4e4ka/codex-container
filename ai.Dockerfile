@@ -87,7 +87,8 @@ RUN usermod -d /home/$APP_USER -m $APP_USER
 WORKDIR /home/$APP_USER
 
 # ===== INSTALL CODEX =====
-RUN npm install -g @openai/codex@latest
+ARG CACHE_BUST=0
+RUN echo "CACHE_BUST=${CACHE_BUST}" >/dev/null && npm install -g @openai/codex@latest
 
 USER 0:0
 
