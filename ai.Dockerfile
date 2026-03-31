@@ -6,6 +6,9 @@ ENV APP_USER=codex \
     APP_GID=1000 \
     DEBIAN_FRONTEND=noninteractive
 
+ARG NODE_MAJOR=22
+ARG PHP_VERSION=8.4
+
 # ===== BASE PACKAGES =====
 RUN apt-get update && apt-get install -y \
     ca-certificates \
@@ -14,8 +17,6 @@ RUN apt-get update && apt-get install -y \
     wget \
     nano \
     vim \
-    nodejs \
-    npm \
     build-essential \
     jq \
     ripgrep \
@@ -62,8 +63,36 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     iproute2 \
     libcurl4-openssl-dev \
-    openvpn \
+    wireguard \
+    resolvconf \
+    iptables \
     && rm -rf /var/lib/apt/lists/*
+
+# ===== LANGUAGE REPOSITORIES =====
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        -o /tmp/nodesource.gpg.key \
+    && gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg /tmp/nodesource.gpg.key \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    && add-apt-repository -y ppa:ondrej/php \
+    && rm -f /tmp/nodesource.gpg.key
+
+# ===== NODE / PHP =====
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    php${PHP_VERSION}-cli \
+    php${PHP_VERSION}-mbstring \
+    php${PHP_VERSION}-xml \
+    php${PHP_VERSION}-curl \
+    php${PHP_VERSION}-zip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://composer.github.io/installer.sig -o /tmp/composer.sig \
+    && curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php \
+    && php -r "if (trim(file_get_contents('/tmp/composer.sig')) !== hash_file('sha384', '/tmp/composer-setup.php')) { fwrite(STDERR, 'Invalid Composer installer signature' . PHP_EOL); exit(1); }" \
+    && php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+    && rm -f /tmp/composer.sig /tmp/composer-setup.php
 
 # ===== PYTHON PACKAGES =====
 RUN apt-get update && apt-get install -y \
@@ -77,7 +106,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ===== VPN CONFIG =====
-COPY client.ovpn /etc/openvpn/client.ovpn
+COPY wg-config.conf /etc/wireguard/wg0.conf
 
 RUN usermod -l $APP_USER ubuntu
 RUN groupmod -n $APP_USER ubuntu

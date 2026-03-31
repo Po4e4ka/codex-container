@@ -1,55 +1,39 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Build OpenVPN route directives in the config anchor block before connection.
-OVPN_CONFIG=${OPENVPN_CONFIG:-/etc/openvpn/client.ovpn}
-OPENAI_SPLIT_DOMAINS=${OPENAI_SPLIT_DOMAINS:-"ifconfig.me api.openai.com chatgpt.com auth.openai.com platform.openai.com files.oaiusercontent.com"}
-ANCHOR_BEGIN="# OPENAI_ROUTES_ANCHOR_BEGIN"
-ANCHOR_END="# OPENAI_ROUTES_ANCHOR_END"
+WG_TARGET="${WIREGUARD_TARGET:-${WIREGUARD_CONFIG:-wg0}}"
+if [[ "${WG_TARGET}" == *.conf ]]; then
+  WG_INTERFACE_DEFAULT="$(basename "${WG_TARGET}" .conf)"
+else
+  WG_INTERFACE_DEFAULT="${WG_TARGET}"
+fi
+WG_INTERFACE="${WIREGUARD_INTERFACE:-${WG_INTERFACE_DEFAULT}}"
 
-echo "[+] Генерация route-блока для OpenVPN: ${OPENAI_SPLIT_DOMAINS}"
-routes=$(
-  for domain in ${OPENAI_SPLIT_DOMAINS}; do
-    ips=$(getent ahostsv4 "${domain}" 2>/dev/null | awk '{print $1}' | sort -u)
-    if [ -z "${ips}" ]; then
-      echo "[!] DNS не вернул IPv4 для ${domain}" >&2
-      continue
-    fi
-    for ip in ${ips}; do
-      printf 'route %s 255.255.255.255\n' "${ip}"
-    done
-  done | sort -u
-)
+wg_down() {
+  if ip link show "${WG_INTERFACE}" >/dev/null 2>&1; then
+    echo "[+] Отключение WireGuard: ${WG_INTERFACE}"
+    wg-quick down "${WG_INTERFACE}" >/dev/null 2>&1 || ip link delete dev "${WG_INTERFACE}" >/dev/null 2>&1 || true
+  fi
+}
 
-tmp_config=$(mktemp)
-awk -v begin="${ANCHOR_BEGIN}" -v end="${ANCHOR_END}" -v routes="${routes}" '
-  $0 == begin {
-    print
-    if (length(routes) > 0) {
-      print routes
-    }
-    in_anchor = 1
-    next
-  }
-  $0 == end {
-    in_anchor = 0
-    print
-    next
-  }
-  !in_anchor { print }
-' "${OVPN_CONFIG}" > "${tmp_config}"
-mv "${tmp_config}" "${OVPN_CONFIG}"
+trap wg_down EXIT INT TERM
 
-openvpn --config "${OVPN_CONFIG}" --daemon
-echo '[+] Подключение к VPN'
-for i in {1..20}; do
-  ip link show tun0 >/dev/null 2>&1 && break
-  sleep 1
-done
-ip link show tun0 >/dev/null 2>&1 || (echo '[!] Подключиться не удалось')
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
+echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+
+if ip link show "${WG_INTERFACE}" >/dev/null 2>&1; then
+  echo "[!] Интерфейс ${WG_INTERFACE} уже существует, перезапускаю"
+  wg_down
+fi
+
+echo "[+] Подключение к WireGuard: ${WG_TARGET}"
+wg-quick up "${WG_TARGET}"
 
 echo -n '[+] Текущий IP: '
 curl -s ifconfig.me || true
 echo
-
-exec su - codex -s /bin/bash -c "$*"
+set +e
+su - codex -s /bin/bash -c "$*"
+cmd_status=$?
+set -e
+exit "${cmd_status}"

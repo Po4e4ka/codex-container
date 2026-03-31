@@ -10,7 +10,7 @@ This project describes the environment in which the Codex agent (me) runs as a D
 The run command is defined in `etp.sh`:
 - The container runs interactively (`-it`) and is removed on exit (`--rm`).
 - Working directory: `/home/codex`.
-- Device `/dev/net/tun` is passed through and `NET_ADMIN` capability is added for OpenVPN.
+- Device `/dev/net/tun` is passed through and `NET_ADMIN` capability is added for WireGuard.
 - Volumes:
   - `${PWD}` → `/home/codex/project` (current project/session volume).
   - `${HOME}/.codex` → `/home/codex/.codex` (Codex config and data).
@@ -19,12 +19,12 @@ The run command is defined in `etp.sh`:
 - Working directory: `/home/codex`.
 - Project/session volume: `/home/codex/project`.
 - Codex configs: `/home/codex/.codex`.
-- VPN config: `/etc/openvpn/client.ovpn`.
+- VPN config: `/home/codex/project/wg-config.conf` (fallback: `/etc/wireguard/wg-config.conf`).
 
 ## Entrypoint
 `entrypoint.sh` performs:
-1. Starts OpenVPN in the background using `/etc/openvpn/client.ovpn`.
-2. Waits up to 20 seconds for the `tun0` interface.
+1. Starts WireGuard using `wg-quick up /home/codex/project/wg-config.conf` (fallback: `/etc/wireguard/wg-config.conf`).
+2. Waits up to 20 seconds for the `wg-config` interface.
 3. Prints the current IP via `ifconfig.me` (if available).
 4. Executes the command as the `codex` login user (`su - codex -s /bin/bash -c "$*"`).
 
@@ -37,9 +37,9 @@ The run command is defined in `etp.sh`:
 ## Installed Packages (Key)
 The image includes core utilities, languages, and dev tools, including:
 - `git`, `curl`, `wget`, `jq`, `ripgrep`, `fd`, `tree`, `tmux`, `screen`, `zip/unzip`, `htop`.
-- `nodejs`, `npm`, `python3`, `pip`, `venv`, `python3-dev`.
+- `nodejs`, `npm`, `python3`, `pip`, `venv`, `python3-dev`, `php-cli`, `composer`.
 - `sqlite3`, `postgresql-client`, `redis-tools`.
-- `openvpn` and networking tools (`iproute2`, `iputils-ping`).
+- `wireguard-tools`, `resolvconf`, and networking tools (`iproute2`, `iputils-ping`).
 - Build and dev libraries (`build-essential`, `libssl-dev`, `zlib1g-dev`, etc.).
 - Media libraries: `imagemagick`, `ffmpeg`.
 - Python packages from apt: `pillow`, `requests`, `numpy`, `pandas`, `pydantic`, `lxml`, `imageio`.
