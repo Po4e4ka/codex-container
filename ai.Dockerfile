@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
 # ===== ENV =====
 ENV APP_USER=codex \
@@ -36,7 +36,6 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-venv \
     python3-dev \
-    python3-whois \
     sqlite3 \
     libsqlite3-dev \
     postgresql-client \
