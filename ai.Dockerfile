@@ -77,6 +77,20 @@ RUN mkdir -p /etc/apt/keyrings \
     && add-apt-repository -y ppa:ondrej/php \
     && rm -f /tmp/nodesource.gpg.key
 
+# ===== DOCKER REPOSITORY =====
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && chmod a+r /etc/apt/keyrings/docker.asc \
+    && . /etc/os-release \
+    && printf '%s\n' \
+        'Types: deb' \
+        'URIs: https://download.docker.com/linux/ubuntu' \
+        "Suites: ${UBUNTU_CODENAME:-$VERSION_CODENAME}" \
+        'Components: stable' \
+        "Architectures: $(dpkg --print-architecture)" \
+        'Signed-By: /etc/apt/keyrings/docker.asc' \
+        > /etc/apt/sources.list.d/docker.sources
+
 # ===== NODE / PHP =====
 RUN apt-get update && apt-get install -y \
     nodejs \
@@ -92,6 +106,13 @@ RUN curl -fsSL https://composer.github.io/installer.sig -o /tmp/composer.sig \
     && php -r "if (trim(file_get_contents('/tmp/composer.sig')) !== hash_file('sha384', '/tmp/composer-setup.php')) { fwrite(STDERR, 'Invalid Composer installer signature' . PHP_EOL); exit(1); }" \
     && php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer \
     && rm -f /tmp/composer.sig /tmp/composer-setup.php
+
+# ===== DOCKER CLI =====
+RUN apt-get update && apt-get install -y \
+    docker-ce-cli \
+    docker-buildx-plugin \
+    docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
 
 # ===== PYTHON PACKAGES =====
 RUN apt-get update && apt-get install -y \
@@ -110,6 +131,7 @@ COPY wg-config.conf /etc/wireguard/wg0.conf
 RUN usermod -l $APP_USER ubuntu
 RUN groupmod -n $APP_USER ubuntu
 RUN usermod -d /home/$APP_USER -m $APP_USER
+RUN groupadd -f docker && usermod -aG docker $APP_USER
 
 # ===== WORKDIR =====
 WORKDIR /home/$APP_USER
