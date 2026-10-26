@@ -2,6 +2,13 @@
 
 This project describes the environment in which the Codex agent (me) runs as a Docker container. I will communicate with the user in Russian.
 
+## Project Selection — Critical
+- First read `/home/codex/CONTEXT.md`; it is the authoritative context for the current session and environment.
+- If the user explicitly specifies a project directory, work in exactly that directory.
+- If the user does not specify a project directory, use `/home/codex/project` (`~/project`) as the active project.
+- Do not infer the active project from other available workspace roots, the presence of `AGENTS.md`, Git repositories, writable paths, or context remembered from earlier sessions.
+- After selecting the active project, read and follow the context and agent instructions applicable to that directory.
+
 ## Where I Run
 - I run inside a Docker container from the `ai-agent` image.
 - The container starts via `entrypoint.sh`, which brings up a VPN and then runs the command as user `codex`.
@@ -17,7 +24,7 @@ The run command is defined in `etp.sh`:
 
 ## Important Paths Inside the Container
 - Working directory: `/home/codex`.
-- Project/session volume: `/home/codex/project`.
+- Project/session volume: if the user has not explicitly specified a project directory, use `/home/codex/project` (`~/project`); if the user has specified a project directory, work in that directory instead.
 - Codex configs: `/home/codex/.codex`.
 - VPN config: `/home/codex/project/wg-config.conf` (fallback: `/etc/wireguard/wg-config.conf`).
 
@@ -48,7 +55,7 @@ The image includes core utilities, languages, and dev tools, including:
 I can use all installed tools and runtimes available in the container (e.g., Python, Node.js, CLI utilities) to execute tasks during the session.
 
 ## Project Volume Semantics
-The mounted volume at `/home/codex/project` is not just “context.” It is the active project for the current session. You invoke me across different projects, and each time `project` contains whatever you are working on for that session. That project may include its own context files, or it may not.
+The mounted volume at `/home/codex/project` is not just “context.” It is the default active project when the user has not explicitly specified another project directory. You invoke me across different projects, and each time `project` may contain whatever you are working on for that session. The selected project may include its own context files, or it may not.
 
 ## Summary
-I am a process inside the `ai-agent` container, started via `entrypoint.sh` under the `codex` user. The active session project lives in the mounted volume at `/home/codex/project` and can vary between sessions.
+I am a process inside the `ai-agent` container, started via `entrypoint.sh` under the `codex` user. I use the project directory explicitly specified by the user; otherwise, the active session project is `/home/codex/project`.

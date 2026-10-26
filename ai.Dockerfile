@@ -62,10 +62,40 @@ RUN apt-get update && apt-get install -y \
     zlib1g-dev \
     iproute2 \
     libcurl4-openssl-dev \
-    wireguard \
-    resolvconf \
+    nftables \
+    util-linux \
     iptables \
     && rm -rf /var/lib/apt/lists/*
+
+# ===== SING-BOX =====
+RUN curl -fsSL https://sing-box.app/install.sh -o /tmp/install-sing-box.sh \
+    && chmod +x /tmp/install-sing-box.sh \
+    && /tmp/install-sing-box.sh \
+    && rm -f /tmp/install-sing-box.sh \
+    && sing-box version
+
+
+# ===== XRAY =====
+# The proxy is a BuildKit secret and is never stored in an image layer.
+RUN --mount=type=secret,id=xray_proxy \
+    export ALL_PROXY="$(cat /run/secrets/xray_proxy 2>/dev/null || true)" \
+    && curl --http1.1 --retry 5 --retry-all-errors --retry-delay 3 -fsSL \
+        https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh \
+        -o /tmp/install-xray.sh \
+    && mkdir -p /tmp/xray-curl \
+    && printf '%s\n' '#!/bin/sh' 'exec /usr/bin/curl --http1.1 --retry-all-errors "$@"' \
+        > /tmp/xray-curl/curl \
+    && chmod +x /tmp/xray-curl/curl \
+    && (set -- install; if [ -n "$ALL_PROXY" ]; then set -- "$@" --proxy "$ALL_PROXY"; fi; \
+        attempt=1; until PATH="/tmp/xray-curl:$PATH" \
+            bash /tmp/install-xray.sh "$@"; do \
+        if [ "$attempt" -ge 3 ]; then exit 1; fi; \
+        echo "Retrying Xray installation ($attempt/3)..."; \
+        attempt=$((attempt + 1)); sleep 3; \
+    done) \
+    && rm -rf /tmp/install-xray.sh /tmp/xray-curl \
+    && xray version
+
 
 # ===== LANGUAGE REPOSITORIES =====
 RUN mkdir -p /etc/apt/keyrings \
@@ -126,8 +156,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ===== VPN CONFIG =====
-COPY wg-config.conf /etc/wireguard/wg0.conf
-
 RUN usermod -l $APP_USER ubuntu
 RUN groupmod -n $APP_USER ubuntu
 RUN usermod -d /home/$APP_USER -m $APP_USER
@@ -144,5 +172,8 @@ USER 0:0
 
 COPY entrypoint.sh /entrypoint.sh
 COPY CONTEXT.md /home/$APP_USER/CONTEXT.md
-RUN chmod +x /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh \
+    && mkdir -p /etc/xray /etc/sing-box
+
 ENTRYPOINT ["/entrypoint.sh"]
