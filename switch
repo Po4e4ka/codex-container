@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-}" in
+    '') exec python3 "$script_dir/vpn-profile.py" show ;;
+    ke|msk|de)
+        [[ $# -eq 1 ]] || { echo "Usage: ./switch [ke|msk|de]" >&2; exit 2; }
+        exec python3 "$script_dir/vpn-profile.py" select "$1"
+        ;;
+    -h|--help)
+        echo "Usage: ./switch [ke|msk|de]"
+        echo "ke: Кения; msk: Москва → Германия; de: Германия напрямую."
+        echo "Выбирает VPN для следующего запуска ./etp.sh. Без аргументов показывает выбор."
+        ;;
+    *) echo "Неизвестный профиль. Usage: ./switch [ke|msk|de]" >&2; exit 2 ;;
+esac

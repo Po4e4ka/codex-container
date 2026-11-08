@@ -3,6 +3,7 @@ set -euo pipefail
 
 update=0
 no_cache=0
+vpn=0
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir"
 
@@ -16,9 +17,18 @@ while [[ $# -gt 0 ]]; do
       no_cache=1
       shift
       ;;
+    --vpn)
+      vpn=1
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [-u|--update] [--no-cache] [--vpn]"
+      echo "  --vpn: build through running VPN_CONTAINER (default: ai-agent), load into host Docker"
+      exit 0
+      ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: $0 [-u|--update] [--no-cache]" >&2
+      echo "Usage: $0 [-u|--update] [--no-cache] [--vpn]" >&2
       exit 1
       ;;
   esac
@@ -30,6 +40,27 @@ if [[ "$no_cache" -eq 1 ]]; then
 fi
 if [[ "$update" -eq 1 ]]; then
   build_args+=(--build-arg "CACHE_BUST=$(date +%s)")
+fi
+
+if [[ "$vpn" -eq 1 ]]; then
+  vpn_container="${VPN_CONTAINER:-ai-agent}"
+  container_id="$(docker inspect --type container --format '{{if .State.Running}}{{.Id}}{{end}}' "$vpn_container")"
+  if [[ -z "$container_id" ]]; then
+    echo "VPN container is not running: $vpn_container" >&2
+    exit 1
+  fi
+  # Each recreated VPN container needs a builder bound to its new network namespace.
+  builder="ai-vpn-${container_id:0:12}"
+  if ! docker buildx inspect "$builder" >/dev/null 2>&1; then
+    docker buildx create --name "$builder" --driver docker-container \
+      --driver-opt "network=container:$container_id" \
+      --buildkitd-flags '--allow-insecure-entitlement network.host'
+  fi
+  echo "Build network: VPN container $vpn_container; image destination: host Docker"
+  docker buildx build --builder "$builder" --load \
+    --network host --allow network.host \
+    "${build_args[@]}" -t ai-agent -f ai.Dockerfile .
+  exit 0
 fi
 
 # Read only the proxy value; never execute the contents of the env file.

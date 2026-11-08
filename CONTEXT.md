@@ -1,4 +1,47 @@
+## Перенос — 2026-11-08
+
+Порядок переноса описан в TRANSFER.md. Безопасный базовый TUN config:
+sing-box.example.json; локальный sing-box.json имеет приоритет.
+SSH-запуск не требует xray-client.json. etp.sh передаёт VPN_PROFILE внутрь Docker.
+Отдельный клиент выбирается только при наличии .vpn-client.json;
+ключи лежат в .private/vpn-client и монтируются read-only в /run/vpn-ssh.
+Без этого файла сохраняется прежний пользователь root и ~/.ssh/id_rsa.
+Статус регистрации отдельного клиента проверять в .private/vpn-client/STATUS.md.
+Секреты, старые VPN-конфиги и backups исключены из Git и build context.
+
 # Session Context
+
+## Current VPN launch — verified 2026-11-05 (corrected after bootstrap failure)
+
+VPN selection is persisted in /home/codex/project/.vpn-profile.
+Executable ./switch msk selects Moscow82.148.239.182 SSH entry → Germany171.22.119.96
+SSH SOCKS exit. ./switch ke selects direct Kenya185.240.51.6 SSH SOCKS.
+./switch de selects direct Germany SSH, ./switch shows next-launch selection.
+These commands affect the next ./etp.sh launch only; current container stays online.
+Current running session is de; next launch was selected msk on2026-11-05.
+
+All profiles use existing SSH key/known_hosts, strict host verification and
+sing-boxTUN/DNS TCP. The helper vpn-profile.py generates /tmp/sing-box-active.json
+with a route exclusion for the actual SSH entry IP. SSH/Moscow exit is Germany,
+Kenya exit is Kenya. No new credentials/server modifications. TCP-only transport.
+
+Run ./etp.sh from host ~/ai after closing the existing ai-agent container.
+No rebuild needed: project, configs, entrypoint, context, SSH, Codex, Docker socket
+and ~/www are mounted. VPN_PROFILE env can override selection for isolated tests.
+
+Fresh msk container passed complete startup and actual authenticated Codex
+account/read(account present,0.89sec), exit171.22.119.96. Kenya SSH22 timed out;
+ke configuration syntax is valid, its network/runtime is unverified until reachable.
+No automatic fallback: a failed selected transport aborts launch. Select msk/de
+offline to recover. Prior Shadowsocks8388 and Reality setups were unreliable.
+
+Never print configs/keys or bake them into images. Write bind-mounted sources
+in place. Backups in backups/20261105-switch/ and earlier directories.
+
+## Historical environment description
+
+The WireGuard/old invocation details below are historical. Current launch is
+Xray + sing-box as described above and implemented in etp.sh/entrypoint.sh.
 
 This project describes the environment in which the Codex agent (me) runs as a Docker container. I will communicate with the user in Russian.
 

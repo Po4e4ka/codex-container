@@ -27,7 +27,8 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-if [[ ! -f "${XRAY_CONFIG}" ]]; then
+VPN_TRANSPORT="${VPN_TRANSPORT:-ssh}"
+if [[ "$VPN_TRANSPORT" != ssh && ! -f "${XRAY_CONFIG}" ]]; then
     echo "[!] Не найден Xray config: ${XRAY_CONFIG}" >&2
     exit 1
 fi
@@ -37,19 +38,29 @@ if [[ ! -f "${SINGBOX_CONFIG}" ]]; then
     exit 1
 fi
 
-echo "[+] Запуск Xray VLESS/REALITY..."
-xray run -c "${XRAY_CONFIG}" >"${XRAY_LOG}" 2>&1 &
+if [[ "$VPN_TRANSPORT" == ssh ]]; then
+    VPN_PROFILE_HELPER=/home/codex/project/vpn-profile.py
+    VPN_SELECTED_PROFILE="$(python3 "$VPN_PROFILE_HELPER" show | cut -d ' ' -f 1)"
+    echo "[+] VPN профиль: $(python3 "$VPN_PROFILE_HELPER" show)"
+    python3 "$VPN_PROFILE_HELPER" tun "$VPN_SELECTED_PROFILE" \
+        --config "$SINGBOX_CONFIG" --output /tmp/sing-box-active.json
+    SINGBOX_CONFIG=/tmp/sing-box-active.json
+    python3 "$VPN_PROFILE_HELPER" ssh "$VPN_SELECTED_PROFILE" >"${XRAY_LOG}" 2>&1 &
+else
+    echo "[+] Запуск Xray VPN..."
+    xray run -c "${XRAY_CONFIG}" >"${XRAY_LOG}" 2>&1 &
+fi
 XRAY_PID=$!
 
 echo "[+] Ожидание SOCKS 127.0.0.1:1081..."
 
-for i in $(seq 1 50); do
+for i in $(seq 1 300); do
     if (echo >/dev/tcp/127.0.0.1/1081) >/dev/null 2>&1; then
         break
     fi
 
     if ! kill -0 "${XRAY_PID}" 2>/dev/null; then
-        echo "[!] Xray завершился:"
+        echo "[!] VPN транспорт завершился:"
         cat "${XRAY_LOG}"
         exit 1
     fi
@@ -57,7 +68,7 @@ for i in $(seq 1 50); do
     sleep 0.1
 done
 
-echo "[+] Проверка VLESS через Xray..."
+echo "[+] Проверка VPN через SOCKS..."
 
 VPN_IP="$(curl -4fsS \
     --max-time 10 \
@@ -65,12 +76,12 @@ VPN_IP="$(curl -4fsS \
     https://api.ipify.org || true)"
 
 if [[ -z "${VPN_IP}" ]]; then
-    echo "[!] Xray/VLESS не работает:"
+    echo "[!] VPN транспорт не работает:"
     cat "${XRAY_LOG}"
     exit 1
 fi
 
-echo "[+] Xray работает. IP: ${VPN_IP}"
+echo "[+] SOCKS работает. IP: ${VPN_IP}"
 
 # Не используем Docker DNS через 127.0.0.11,
 # чтобы DNS также уходил через TUN.
@@ -117,6 +128,11 @@ if [[ -z "${FINAL_IP}" ]]; then
     echo "===== sing-box ====="
     cat "${SINGBOX_LOG}"
 
+    exit 1
+fi
+
+if [[ "${FINAL_IP}" != "${VPN_IP}" ]]; then
+    echo "[!] IP через TUN отличается от IP через Xray" >&2
     exit 1
 fi
 

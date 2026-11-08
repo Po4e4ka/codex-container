@@ -1,0 +1,5 @@
+# Only these files are needed for the image. Keep VPN keys and local configs out.
+**
+!ai.Dockerfile
+!entrypoint.sh
+!CONTEXT.md

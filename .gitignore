@@ -1,0 +1,18 @@
+# Machine state and credentials
+.vpn-profile
+.vpn-profile.*
+.vpn-client.json
+.private/
+.codex*/
+.idea/
+backups/
+__pycache__/
+*.pyc
+*.conf
+*.conf.*
+sing-box.json
+sing-box.json.*
+xray-client.json*
+xray/
+*.tar.gz
+*.private.*
