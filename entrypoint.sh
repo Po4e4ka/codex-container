@@ -39,7 +39,7 @@ if [[ ! -f "${SINGBOX_CONFIG}" ]]; then
 fi
 
 if [[ "$VPN_TRANSPORT" == ssh ]]; then
-    VPN_PROFILE_HELPER=/home/codex/project/vpn-profile.py
+    VPN_PROFILE_HELPER="${VPN_PROFILE_HELPER:-/home/codex/project/vpn-profile.py}"
     VPN_SELECTED_PROFILE="$(python3 "$VPN_PROFILE_HELPER" show | cut -d ' ' -f 1)"
     echo "[+] VPN профиль: $(python3 "$VPN_PROFILE_HELPER" show)"
     python3 "$VPN_PROFILE_HELPER" tun "$VPN_SELECTED_PROFILE" \
